@@ -22,24 +22,31 @@ jobs:
           BTD="$ANDROID_HOME/build-tools/$BT"
           AJAR="$ANDROID_HOME/platforms/$PLAT/android.jar"
 
+          # 1) 编译期 stub jar（按包目录拆分的所有 stub 源文件）
           mkdir -p /tmp/stub
-          javac -nowarn -d /tmp/stub libs/XposedBridgeApi-stub.java libs/callbacks/XC_LoadHook.java
+          find libs -name '*.java' > /tmp/stub-srcs.txt
+          javac -nowarn -d /tmp/stub @/tmp/stub-srcs.txt
           jar cf libs/XposedBridgeApi-stub.jar -C /tmp/stub .
+          echo "stub classes: $(find /tmp/stub -name '*.class' | wc -l)"
 
+          # 2) 编译 hook 源码 (1.8 target)
           mkdir -p out/classes out/dex
           find app/src/main/java -name '*.java' > /tmp/srcs.txt
           javac -nowarn -source 1.8 -target 1.8 -cp libs/XposedBridgeApi-stub.jar -d out/classes @/tmp/srcs.txt
           echo "compiled classes: $(find out/classes -name '*.class' | wc -l)"
 
-          "$BTD/d8" --release --lib "$AJAR" --output out/dex $(find out/classes -name '*.class')
-          mv out/dex/classes.dex out/classes.dex
+          # 3) d8 打 dex
+          "$BTD/d8" --release --lib "$AJAR" --output out/dex $(find out/classes -name '*.class' | grep -v 'module-info')
+          find out/dex -name '*.dex' -exec mv {} out/classes.dex \;
           ls -la out/classes.dex
 
+          # 4) aapt 打包 (资源+assets)
           "$BTD/aapt" package -f -M app/src/main/AndroidManifest.xml \
                 -S app/src/main/res -A app/src/main/assets \
                 -I "$AJAR" -F /tmp/unsigned.apk
           (cd out && "$BTD/aapt" add /tmp/unsigned.apk classes.dex)
 
+          # 5) zipalign + 自签
           "$BTD/zipalign" -f 4 /tmp/unsigned.apk /tmp/aligned.apk
           keytool -genkeypair -alias k -keystore /tmp/ks.jks -storepass 123456 \
                   -keypass 123456 -dname "CN=cad" -keyalg RSA -validity 10000 -storetype JKS

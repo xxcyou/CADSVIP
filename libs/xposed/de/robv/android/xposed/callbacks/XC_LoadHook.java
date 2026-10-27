@@ -1,5 +1,4 @@
 package de.robv.android.xposed.callbacks;
-
 public class XC_LoadHook {
     public static class LoadPackageParam {
         public String packageName;
