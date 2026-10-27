@@ -29,10 +29,10 @@ jobs:
           jar cf libs/XposedBridgeApi-stub.jar -C /tmp/stub .
           echo "stub classes: $(find /tmp/stub -name '*.class' | wc -l)"
 
-          # 2) 编译 hook 源码 (1.8 target)
+          # 2) 编译 hook 源码 (1.8 target)，必须带 android.jar 和 stub jar
           mkdir -p out/classes out/dex
           find app/src/main/java -name '*.java' > /tmp/srcs.txt
-          javac -nowarn -source 1.8 -target 1.8 -cp libs/XposedBridgeApi-stub.jar -d out/classes @/tmp/srcs.txt
+          javac -nowarn -source 1.8 -target 1.8 -cp "libs/XposedBridgeApi-stub.jar:$AJAR" -d out/classes @/tmp/srcs.txt
           echo "compiled classes: $(find out/classes -name '*.class' | wc -l)"
 
           # 3) d8 打 dex
