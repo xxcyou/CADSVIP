@@ -19,7 +19,7 @@ import de.robv.android.xposed.callbacks.XC_LoadHook;
 public class MainHook implements IXposedHookLoadPackage {
 
     public static final String TAG = "CADSVIP";
-    private static final String PKG = "com.stone.app";
+    private static final String PKG = "com.gstarmc.android";   // applicationId (manifest)，代码包是 com.stone.app
 
     @Override
     public void handleLoadPackage(final XC_LoadHook.LoadPackageParam lp) {
@@ -43,24 +43,25 @@ public class MainHook implements IXposedHookLoadPackage {
     private void doHook(ClassLoader cl, Context ctx) {
         List<String> names = enumClassNames(ctx);
         XposedBridge.log(TAG + " 枚举到 " + names.size() + " 个类");
-        for (String n : names) {
-            if (n.endsWith("AppSharedPreferences")) {
-                XposedBridge.log(TAG + " 命中 AppSharedPreferences: " + n);
-                hookAppShared(n, cl);
-            } else if (n.endsWith("NewUserInfoModel")) {
-                XposedBridge.log(TAG + " 命中 NewUserInfoModel: " + n);
-                hookVipType(n, cl);
-            }
-        }
+        // 完整类名直连（已从逆向确认）
+        hookAppShared("com.stone.app.sharedpreferences.AppSharedPreferences", cl);
+        hookVipType("com.stone.app.model.NewUserInfoModel", cl);
     }
 
     private void hookAppShared(String clsName, ClassLoader cl) {
         try {
             Class c = XposedHelpers.findClass(clsName, cl);
+            // getUserType 直接锁至尊 7（绕过 login_status 前置检查的前提）
             XposedHelpers.findAndHookMethod(c, "getUserType",
                     new XC_MethodReplacement() {
                         @Override protected Object replaceHookedMethod(MethodHookParam p) { return 7; }
                     });
+            // 伪登录态：getUserLoginStatus 恒 true（原本 false 会拒绝几乎所有会员判定）
+            XposedHelpers.findAndHookMethod(c, "getUserLoginStatus",
+                    new XC_MethodReplacement() {
+                        @Override protected Object replaceHookedMethod(MethodHookParam p) { return Boolean.TRUE; }
+                    });
+            XposedBridge.log(TAG + " 已 lock getUserType=7 / getUserLoginStatus=true");
             String[] flags = {"isUserVip_Super", "isUserVip_High", "isUserVip_AD", "isUserVip_Company"};
             for (String f : flags) {
                 try {
